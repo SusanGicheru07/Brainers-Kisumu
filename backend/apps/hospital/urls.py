@@ -1,6 +1,11 @@
 from django.urls import path
 
-from .views import *
+from .views import (
+    SignUpView, CustomLoginView, CustomLogoutView, 
+    HospitalSignUpView, StaffRequestAccessView, AccessPendingView,
+    hospital_detail, hospital_list,
+    hospital_dashboard_data, county_dashboard_data, test_county_endpoint
+)
 
 
 urlpatterns = [
@@ -17,5 +22,6 @@ urlpatterns = [
 
     path("api/dashboard/hospital/", hospital_dashboard_data, name="hospital_dashboard_data"),
     path("api/dashboard/county/", county_dashboard_data, name="county_dashboard_data"),
+    path("api/test/county/", test_county_endpoint, name="test_county_endpoint"),
 
 ]
