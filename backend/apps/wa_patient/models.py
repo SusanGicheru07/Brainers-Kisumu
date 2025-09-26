@@ -15,8 +15,8 @@ class Patient(models.Model):
     weeks_pregnant = models.PositiveIntegerField(default=0, help_text="Number of weeks pregnant")
     ward = models.CharField(max_length=100, default="")
     county = models.CharField(max_length=100, default="")
-    preferred_hospitals = models.ManyToManyField("Hospital", related_name="preferred_patients", blank=True)
-    suggested_hospitals = models.ManyToManyField("Hospital", related_name="suggested_patients", blank=True)
+    preferred_hospitals = models.ManyToManyField("hospital.Hospital", related_name="preferred_patients", blank=True)
+    suggested_hospitals = models.ManyToManyField("hospital.Hospital", related_name="suggested_patients", blank=True)
     emergency_contact = models.CharField(max_length=20, blank=True, help_text="Hospital phone number")
 
     def __str__(self):
@@ -95,7 +95,7 @@ class Patient(models.Model):
 
 class Appointment(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="appointments")
-    hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE, related_name="appointments")
+    hospital = models.ForeignKey("hospital.Hospital", on_delete=models.CASCADE, related_name="appointments")
     appointment_date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
 
