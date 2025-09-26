@@ -7,6 +7,12 @@ from datetime import timedelta
 from django.db.models import Count
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from rest_framework import viewsets
+from rest_framework.exceptions import NotFound
+from .models import Appointment, Patient
+from .serializers import AppointmentSerializer
+
+
 
 from apps.hospital.models import Hospital, ANCService
 from .models import Patient, Appointment
@@ -152,11 +158,6 @@ class PatientViewSet(viewsets.ModelViewSet):
 
         patient.save()
 
-
-from rest_framework import viewsets
-from rest_framework.exceptions import NotFound
-from .models import Appointment, Patient
-from .serializers import AppointmentSerializer
 
 
 @method_decorator(csrf_exempt, name='dispatch')
