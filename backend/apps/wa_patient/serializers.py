@@ -43,7 +43,7 @@ class PatientSerializer(serializers.ModelSerializer):
             "ward", "county",
             "preferred_hospitals", "preferred_hospitals_ids",
             "suggested_hospitals", "suggested_hospitals_ids",
-            "emergency_contact", "suggestion_source"
+            "emergency_contact", "suggestion_source","current_week", "status"
         ]
 
 
