@@ -81,7 +81,6 @@ class HospitalAdmin(admin.ModelAdmin):
     search_fields = ("name", "county", "sub_county", "ward")
     list_filter = ("type", "county", "ward")
     ordering = ("name",)
-    show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(ANCRecord)
@@ -108,7 +107,6 @@ class ANCRecordAdmin(admin.ModelAdmin):
     list_filter = ("hospital", "periodname")
     search_fields = ("hospital__name", "periodname")
     ordering = ("-periodname",)
-    show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(ANCService)
@@ -136,4 +134,3 @@ class ANCServiceAdmin(admin.ModelAdmin):
         "blood_bank",
     )
     ordering = ("hospital__name",)
-    show_facets = admin.ShowFacets.ALWAYS

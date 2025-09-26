@@ -4,7 +4,7 @@ from .models import Patient, Appointment
 
 @admin.register(Patient)
 class PatientAdmin(admin.ModelAdmin):
-    list_display = ("name", "phone", "date_registered", "ward", "county", "emergency_contact")
+    list_display = ("id_number", "name", "phone", "date_registered","current_week", "status", "ward", "county", "emergency_contact")
     search_fields = ("name", "phone", "ward")
     list_filter = ("ward", "preferred_hospitals")
     filter_horizontal = ("preferred_hospitals", "suggested_hospitals")

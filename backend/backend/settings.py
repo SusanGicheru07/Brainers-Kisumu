@@ -2,7 +2,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 from pathlib import Path
+
 load_dotenv()
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DATABASES = {
@@ -180,3 +183,16 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+
+# Redis / Celery configuration
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")  
+
+CELERY_BROKER_URL = f"redis://default:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0"
+CELERY_RESULT_BACKEND = f"redis://default:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0"
+
+CELERY_TIMEZONE = "Africa/Nairobi"
+CELERY_ENABLE_UTC = True
+
