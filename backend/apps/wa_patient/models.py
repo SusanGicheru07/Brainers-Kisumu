@@ -10,6 +10,7 @@ class Patient(models.Model):
     Represents a patient (mother) receiving ANC services.
     """
     id_number = models.CharField(primary_key=True, max_length=20)
+    telegram_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
     name = models.CharField(max_length=255, default="")
     phone = models.CharField(max_length=20, unique=True, default="")
     date_registered = models.DateField(default=timezone.now)
@@ -21,8 +22,8 @@ class Patient(models.Model):
 
     emergency_contact = models.CharField(max_length=20, blank=True, help_text="Hospital phone number")
 
-    current_week = models.PositiveIntegerField(default=0, help_text="Auto-calculated pregnancy week")
-    status = models.CharField(max_length=20, default="good", help_text="Pregnancy visit status")
+    current_week = models.PositiveIntegerField(default=0, help_text="Auto-calculated pregnancy week", null=True)
+    status = models.CharField(max_length=20, default="good", help_text="Pregnancy visit status", null=True)
 
     def __str__(self):
         return f"{self.name} ({self.phone})"
@@ -33,7 +34,7 @@ class Patient(models.Model):
         self.current_week = self.weeks_pregnant + floor(days_diff / 7)
 
         visit_weeks = {12, 20, 26, 30, 34, 36, 38, 40}
-        self.status = "should visit" if self.current_week in visit_weeks else "good"
+        self.status = "Should Visit" if self.current_week in visit_weeks else "Good"
 
     def save(self, *args, **kwargs):
         """Ensure current_week and status are updated before saving."""
