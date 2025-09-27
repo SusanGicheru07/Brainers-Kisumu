@@ -234,9 +234,18 @@ class CustomLoginView(View):
                 # Add health worker specific data if applicable
                 if hasattr(user, "health_worker_profile"):
                     hw = user.health_worker_profile
+                    hospitals_data = [{
+                        'id': h.id,
+                        'name': h.name,
+                        'county': h.county,
+                        'ward': h.ward,
+                        'type': h.type
+                    } for h in hw.hospitals.all()]
+                    
                     user_data.update({
                         'role': hw.role,
-                        'hospitals': [h.name for h in hw.hospitals.all()],
+                        'hospitals': hospitals_data,
+                        'primary_hospital_id': hospitals_data[0]['id'] if hospitals_data else None,
                         'is_approved': hw.is_approved
                     })
                 

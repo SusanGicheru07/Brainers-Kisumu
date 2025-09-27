@@ -44,15 +44,17 @@ class PatientViewSet(viewsets.ModelViewSet):
         else:
             # Check if user is a health worker with hospital assignments
             try:
-                health_worker = self.request.user.healthworker
+                health_worker = self.request.user.health_worker_profile
                 health_worker_hospitals = health_worker.hospitals.all()
                 if health_worker_hospitals.exists():
                     user_hospitals = list(health_worker_hospitals)
             except AttributeError:
+                print(f"User {self.request.user} has no health_worker_profile")
                 pass
         
         # Return empty queryset if no hospital association found - NO sample data fallbacks
         if not user_hospitals:
+            print(f"No hospitals found for user {self.request.user} - returning empty queryset")
             return Patient.objects.none()
         
         # Return patients associated with user's hospital(s) (suggested or preferred)
@@ -93,29 +95,46 @@ class PatientViewSet(viewsets.ModelViewSet):
         Override to auto-suggest hospitals when a patient is created.
         Automatically adds the creating user's hospital as a preferred hospital.
         """
+        print(f"=== Patient Creation Debug ===")
+        print(f"User: {self.request.user}")
+        print(f"User authenticated: {self.request.user.is_authenticated}")
+        print(f"User type: {getattr(self.request.user, 'user_type', 'No user_type')}")
+        
         # Get user's hospital - strict validation, no fallbacks
         user_hospital = None
         
         # Check if user has a direct hospital relationship
         if hasattr(self.request.user, 'hospital') and self.request.user.hospital:
             user_hospital = self.request.user.hospital
+            print(f"Found direct hospital relationship: {user_hospital}")
         else:
             # Check if user is a health worker with hospital assignments
             try:
-                health_worker = self.request.user.healthworker
+                health_worker = self.request.user.health_worker_profile
                 health_worker_hospitals = health_worker.hospitals.all()
                 if health_worker_hospitals.exists():
                     # Use the first hospital if multiple, but ensure it exists
                     user_hospital = health_worker_hospitals.first()
+                    print(f"Found health worker hospital: {user_hospital}")
+                else:
+                    print("Health worker has no hospital assignments")
             except AttributeError:
+                print("User has no health_worker_profile")
                 pass
+        
+        if not user_hospital:
+            print("ERROR: No hospital found for user - patient creation will fail")
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("User not associated with any hospital. Please contact administrator.")
         
         # Save first so we get patient object
         patient = serializer.save()
+        print(f"Patient created: {patient}")
 
         # Add user's hospital as preferred hospital
         if user_hospital:
             patient.preferred_hospitals.add(user_hospital)
+            print(f"Added {user_hospital} as preferred hospital for patient {patient}")
 
         # If manual suggested_hospitals_ids are passed -> don't auto assign
         request_data = self.request.data
@@ -189,7 +208,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         else:
             # Check if user is a health worker with hospital assignments
             try:
-                health_worker = self.request.user.healthworker
+                health_worker = self.request.user.health_worker_profile
                 health_worker_hospitals = health_worker.hospitals.all()
                 if health_worker_hospitals.exists():
                     user_hospitals = list(health_worker_hospitals)
@@ -228,7 +247,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         else:
             # Check if user is a health worker with hospital assignments
             try:
-                health_worker = self.request.user.healthworker
+                health_worker = self.request.user.health_worker_profile
                 health_worker_hospitals = health_worker.hospitals.all()
                 if health_worker_hospitals.exists():
                     # Use the first hospital if multiple, but ensure it exists
@@ -259,52 +278,180 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 @permission_classes([IsAuthenticated])
 def weekly_patient_visits(request):
     """
-    Return the number of patients who have appointments scheduled this week 
-    for the authenticated user's hospital.
+    Return comprehensive weekly patient visit data for the authenticated user's hospital.
+    Provides structured data for frontend dashboard visualization.
     """
+    # Debug: Log authentication details
+    print(f"=== Weekly Patient Visits Debug ===")
+    print(f"User authenticated: {request.user.is_authenticated}")
+    print(f"User: {request.user}")
+    print(f"User ID: {request.user.id if hasattr(request.user, 'id') else 'No ID'}")
+    print(f"Username: {request.user.username if hasattr(request.user, 'username') else 'No username'}")
+    
     # Get user's hospital - strict validation, no fallbacks
     user_hospital = None
+    hospital_source = "unknown"
     
-    # Check if user has a direct hospital relationship
+    # Check if user has a direct hospital relationship (for hospital accounts)
     if hasattr(request.user, 'hospital') and request.user.hospital:
         user_hospital = request.user.hospital
+        hospital_source = "direct_hospital_relationship"
     else:
         # Check if user is a health worker with hospital assignments
         try:
-            health_worker = request.user.healthworker
+            health_worker = request.user.health_worker_profile
             health_worker_hospitals = health_worker.hospitals.all()
             if health_worker_hospitals.exists():
-                # Use the first hospital if multiple, but ensure it exists
+                # Use the first hospital - in production, you might want to add hospital selection logic
                 user_hospital = health_worker_hospitals.first()
+                hospital_source = "healthworker_assignment"
+            else:
+                print("Health worker has no hospital assignments")
         except AttributeError:
+            print("User has no health_worker_profile")
             pass
+    
+    print(f"Hospital source: {hospital_source}")
+    print(f"User hospital: {user_hospital}")
     
     if not user_hospital:
         return Response({
             'error': 'User not associated with any hospital',
             'user_id': request.user.id,
             'username': request.user.username,
-            'suggestion': 'Please ensure your user account is properly associated with a hospital or assigned as a health worker to hospitals'
+            'user_type': getattr(request.user, 'user_type', 'unknown'),
+            'suggestion': 'Please ensure your user account is properly associated with a hospital or assigned as a health worker to hospitals',
+            'debug_info': f'Hospital source attempted: {hospital_source}'
         }, status=403)
     
     today = now().date()
     start_week = today - timedelta(days=today.weekday())  # Monday
     end_week = start_week + timedelta(days=6)  # Sunday
 
-    # Filter appointments by user's hospital
-    appointments = Appointment.objects.filter(
+    # Get all appointments for this week
+    weekly_appointments = Appointment.objects.filter(
         hospital=user_hospital,
-        appointment_date__range=(start_week, end_week),
-        status="scheduled"
-    )
+        appointment_date__range=(start_week, end_week)
+    ).select_related('patient')
+
+    # Group appointments by status
+    appointments_by_status = {
+        'scheduled': weekly_appointments.filter(status='scheduled').count(),
+        'completed': weekly_appointments.filter(status='completed').count(),
+        'missed': weekly_appointments.filter(status='missed').count(),
+        'cancelled': weekly_appointments.filter(status='cancelled').count(),
+    }
+
+    # Group appointments by day with day names
+    daily_appointments = []
+    for i in range(7):
+        day_date = start_week + timedelta(days=i)
+        day_appointments = weekly_appointments.filter(appointment_date=day_date)
+        daily_appointments.append({
+            'date': day_date,
+            'day_name': day_date.strftime('%A'),  # Monday, Tuesday, etc.
+            'total_appointments': day_appointments.count(),
+            'scheduled': day_appointments.filter(status='scheduled').count(),
+            'completed': day_appointments.filter(status='completed').count(),
+            'missed': day_appointments.filter(status='missed').count(),
+            'cancelled': day_appointments.filter(status='cancelled').count(),
+        })
+
+    # Get patient visit status summary
+    patients_this_week = Patient.objects.filter(
+        appointments__hospital=user_hospital,
+        appointments__appointment_date__range=(start_week, end_week)
+    ).distinct()
+
+    patients_by_status = {
+        'should_visit': patients_this_week.filter(status='should visit').count(),
+        'good': patients_this_week.filter(status='good').count(),
+        'total_patients': patients_this_week.count(),
+    }
+
+    # Calculate capacity utilization
+    anc_service = ANCService.objects.filter(hospital=user_hospital).first()
+    capacity_info = {
+        'daily_capacity': anc_service.daily_capacity if anc_service else 0,
+        'current_capacity': anc_service.current_capacity if anc_service else 0,
+        'utilization_percentage': round(
+            (anc_service.current_capacity / anc_service.daily_capacity * 100) 
+            if anc_service and anc_service.daily_capacity > 0 else 0, 1
+        ),
+        'available_slots': (anc_service.daily_capacity - anc_service.current_capacity) 
+                          if anc_service else 0,
+    }
+
+    # ANC Information and Guidelines
+    anc_info = {
+        'title': 'Antenatal Care (ANC) Guidelines',
+        'description': 'Essential healthcare service for pregnant women to ensure healthy pregnancy and safe delivery.',
+        'recommended_visits': [
+            {'week': 12, 'description': 'First visit - Initial assessment, health history, and basic tests'},
+            {'week': 20, 'description': 'Second visit - Ultrasound scan and growth monitoring'},
+            {'week': 26, 'description': 'Third visit - Blood pressure and weight monitoring'},
+            {'week': 30, 'description': 'Fourth visit - Position assessment and health check'},
+            {'week': 34, 'description': 'Fifth visit - Pre-delivery preparation and counseling'},
+            {'week': 36, 'description': 'Sixth visit - Final preparations and birth planning'},
+            {'week': 38, 'description': 'Seventh visit - Ready for delivery assessment'},
+            {'week': 40, 'description': 'Final visit - Delivery readiness and emergency planning'},
+        ],
+        'key_services': [
+            'Health education and counseling',
+            'Nutritional guidance and supplements',
+            'Prevention and treatment of infections',
+            'Early detection of complications',
+            'Birth planning and emergency preparedness',
+            'Immunization (Tetanus Toxoid)',
+            'Iron and folic acid supplementation',
+            'HIV/AIDS counseling and testing'
+        ],
+        'warning_signs': [
+            'Severe headaches',
+            'Blurred vision',
+            'Severe abdominal pain',
+            'Vaginal bleeding',
+            'Reduced fetal movements',
+            'Persistent vomiting',
+            'High fever',
+            'Severe swelling of face/hands'
+        ]
+    }
 
     data = {
-        "hospital_name": user_hospital.name,
-        "start_week": start_week,
-        "end_week": end_week,
-        "total_appointments": appointments.count(),
-        "appointments_by_day": appointments.extra(
-            select={'day': 'date(appointment_date)'}
-        ).values('day').annotate(count=Count('id')).order_by('day'),
+        'hospital_info': {
+            'name': user_hospital.name,
+            'ward': user_hospital.ward,
+            'county': user_hospital.county,
+        },
+        'week_period': {
+            'start_date': start_week,
+            'end_date': end_week,
+            'week_number': start_week.isocalendar()[1],  # ISO week number
+            'year': start_week.year,
+        },
+        'appointments_summary': {
+            'total_appointments': weekly_appointments.count(),
+            'by_status': appointments_by_status,
+            'by_day': daily_appointments,
+        },
+        'patients_summary': patients_by_status,
+        'capacity_info': capacity_info,
+        'anc_information': anc_info,
+        'dashboard_metrics': {
+            'completion_rate': round(
+                (appointments_by_status['completed'] / weekly_appointments.count() * 100)
+                if weekly_appointments.count() > 0 else 0, 1
+            ),
+            'no_show_rate': round(
+                (appointments_by_status['missed'] / weekly_appointments.count() * 100)
+                if weekly_appointments.count() > 0 else 0, 1
+            ),
+            'cancellation_rate': round(
+                (appointments_by_status['cancelled'] / weekly_appointments.count() * 100)
+                if weekly_appointments.count() > 0 else 0, 1
+            ),
+        }
     }
+    
     return Response(data)

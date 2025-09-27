@@ -10,7 +10,6 @@ router.register(r'appointments', AppointmentViewSet, basename='appointments')
 urlpatterns = [
     # All patients + appointments will be under /api/
     path("api/", include(router.urls)),
-
     # Weekly patient visits stats
     path("api/weekly-patient-visits/", weekly_patient_visits, name="weekly-patient-visits"),
 ]

@@ -74,6 +74,29 @@ class ApiClient {
     });
   }
 
+  // Generic HTTP methods
+  async get(endpoint) {
+    return this.request(endpoint);
+  }
+
+  async post(endpoint, data) {
+    return this.request(endpoint, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async put(endpoint, data) {
+    return this.request(endpoint, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async delete(endpoint) {
+    return this.request(endpoint, { method: "DELETE" });
+  }
+
   // Dashboard methods
   async getHospitalDashboardData() {
     return this.request("/api/dashboard/hospital/");
